@@ -2,9 +2,7 @@
 import base64
 import requests
 
-# Tüm modül boyunca tek bir Session -- bağlantı havuzu ve keep-alive sağlar.
 _session = requests.Session()
-
 
 class AdoApiError(Exception):
     pass
@@ -19,7 +17,6 @@ def _get(url: str, pat: str, timeout: int) -> dict:
     try:
         response = _session.get(url, headers=_build_auth_header(pat), timeout=timeout)
     except requests.exceptions.RequestException as e:
-        # Ağ hatası, timeout vs. -- ana döngü bunu yakalayıp retry yapacak
         raise AdoApiError(f"API isteği başarısız: {e}") from e
 
     if response.status_code == 401:

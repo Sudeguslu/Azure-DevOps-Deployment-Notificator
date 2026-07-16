@@ -1,6 +1,6 @@
 {
-  "organization": "guslusude",
-  "project": "DeploymentNotification",
+  "organization": "sude200270",
+  "project": "deploy-auto-sim",
   "pipeline_type": "build",
   "pipeline_id": 1,
   "environment_id": null,
