@@ -1,0 +1,8 @@
+{
+  "organization": "WRITE YOUT ORGANISATION_NAME",
+  "project": "WRITE YOUR PROEJECT_NAME",
+  "pipeline_type": "build",
+  "environment_id": null,
+  "poll_interval_seconds": 30,
+  "api_version": "7.1"
+}

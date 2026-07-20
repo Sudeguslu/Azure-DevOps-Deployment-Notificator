@@ -15,7 +15,6 @@ PIPE_NAME = r'\\.\pipe\DeployNotifierPipe'
 
 
 def send_to_pipe(payload: dict) -> None:
-    """Named pipe üzerinden user-session notifier'a mesaj gönderir."""
     try:
         handle = win32file.CreateFile(
             PIPE_NAME,
@@ -26,15 +25,15 @@ def send_to_pipe(payload: dict) -> None:
         )
         win32file.WriteFile(handle, json.dumps(payload).encode("utf-8"))
         win32file.CloseHandle(handle)
-        log.info(f"Bildirim pipe'a gönderildi: {payload}")
+        log.info(f"Notification has sended to pipe: {payload}")
     except Exception as e:
-        log.warning(f"Notifier pipe'a bağlanılamadı (kullanıcı oturumu açık olmayabilir): {e}")
+        log.warning(f"Could not connect to notifier pipe (the user session might not be active)): {e}")
 
 
 class DeployNotifierService(win32serviceutil.ServiceFramework):
     _svc_name_ = "DeployNotifierService"
     _svc_display_name_ = "Azure DevOps Deploy Notifier"
-    _svc_description_ = "Azure DevOps pipeline sonuçlarını izler, kullanıcıya bildirim gönderir."
+    _svc_description_ = "Monitors Azure DevOps pipeline results and sends notifications to the user."
 
     def __init__(self, args):
         win32serviceutil.ServiceFramework.__init__(self, args)
@@ -58,8 +57,6 @@ class DeployNotifierService(win32serviceutil.ServiceFramework):
         cfg = load_config()
         pat = get_pat()
         interval = cfg["poll_interval_seconds"]
-
-        log.info(f"DeployNotifierService başladı. Her {interval} saniyede bir kontrol edilecek.")
 
         while self.running:
             try:

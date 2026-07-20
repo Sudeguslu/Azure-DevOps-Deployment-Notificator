@@ -1,8 +1,8 @@
 import time
 
 from config import load_config, get_pat
-from ado_client import get_latest_build, get_latest_release_deployment, AdoApiError
-from state import load_last_build_id, save_last_build_id
+from ado_client import get_recent_builds, get_latest_release_deployment, AdoApiError
+from state import load_last_build_ids, save_last_build_id
 from notifier import notify_deployment_result
 from logger import get_logger
 
@@ -10,37 +10,52 @@ log = get_logger()
 
 
 def _check_build_pipeline(cfg: dict, pat: str, notify_callback) -> None:
-    """YAML/Build pipeline için kontrol mantığı."""
-    build = get_latest_build(
+    builds = get_recent_builds(
         organization=cfg["organization"],
         project=cfg["project"],
-        pipeline_id=cfg["pipeline_id"],
         pat=pat,
         api_version=cfg["api_version"],
     )
 
-    item_id = build["id"]
-    status = build.get("status")
-    result = build.get("result")
-    display_number = build.get("buildNumber", str(item_id))
-    pipeline_name = build.get("definition", {}).get("name", "Pipeline")
+    last_ids = load_last_build_ids()
 
-    requested_for = build.get("requestedFor", {})
-    triggered_by = requested_for.get("displayName", "Bilinmiyor")
+    for build in builds:
+        status = build.get("status")
+        result = build.get("result")
+        if status != "completed" or not result:
+            continue
 
-    commit_hash = build.get("sourceVersion", "")
-    commit_message = build.get("sourceVersionMessage", "").replace("\n", " ").replace("\r", "")
-    commit_short = commit_hash[:7] if commit_hash else ""
+        item_id = build["id"]
+        definition = build.get("definition", {})
+        pipeline_id = definition.get("id")
+        pipeline_name = definition.get("name", "Pipeline")
+        display_number = build.get("buildNumber", str(item_id))
 
-    if status != "completed" or not result:
-        return
+        requested_for = build.get("requestedFor", {})
+        triggered_by = requested_for.get("displayName", "Unknown")
 
-    commit_summary = f" [{commit_short}: {commit_message.strip()[:60]}]" if commit_short else ""
-    _notify_if_new(item_id, pipeline_name, display_number + commit_summary, result, triggered_by, notify_callback)
+        commit_hash = build.get("sourceVersion", "")
+        commit_message = build.get("sourceVersionMessage", "").replace("\n", " ").replace("\r", "")
+        commit_short = commit_hash[:7] if commit_hash else ""
+        commit_summary = f" [{commit_short}: {commit_message.strip()[:60]}]" if commit_short else ""
+
+        last_id = last_ids.get(str(pipeline_id))
+        if last_id is None or item_id > last_id:
+            log.info(f"[{pipeline_name}] Yeni sonuç tespit edildi: {display_number}{commit_summary} -> {result} (tetikleyen: {triggered_by})")
+            notify_callback({
+                "pipeline_name":pipeline_name,
+                "display_label":display_number + commit_summary,
+                "result": result,
+                "triggered_by": triggered_by
+            })
+            save_last_build_id(pipeline_id, item_id)
+            last_ids[str(pipeline_id)] = item_id
+            
+        else:
+            log.debug(f"[{pipeline_name}] No changes, last id={item_id} already reported.")
 
 
 def _check_release_pipeline(cfg: dict, pat: str, notify_callback) -> None:
-    """Classic Release pipeline için kontrol mantığı."""
     deployment = get_latest_release_deployment(
         organization=cfg["organization"],
         project=cfg["project"],
@@ -55,6 +70,7 @@ def _check_release_pipeline(cfg: dict, pat: str, notify_callback) -> None:
     release_name = deployment.get("release", {}).get("name", str(item_id))
     pipeline_name = deployment.get("releaseDefinition", {}).get("name", "Release Pipeline")
     environment_name = deployment.get("releaseEnvironment", {}).get("name", "")
+    pipeline_id = cfg["pipeline_id"]
 
     requested_for = deployment.get("requestedFor", {})
     triggered_by = requested_for.get("displayName", "Bilinmiyor")
@@ -63,30 +79,25 @@ def _check_release_pipeline(cfg: dict, pat: str, notify_callback) -> None:
         return
 
     display_label = f"{release_name} ({environment_name})" if environment_name else release_name
-    _notify_if_new(item_id, pipeline_name, display_label, result, triggered_by, notify_callback)
 
-
-def _notify_if_new(item_id: int, pipeline_name: str, display_label: str,
-                    result: str, triggered_by: str, notify_callback) -> None:
-    """Build ve Release akışının ortak son adımı: state karşılaştırması + bildirim."""
-    last_id = load_last_build_id()
+    last_ids = load_last_build_ids()
+    last_id = last_ids.get(str(pipeline_id))
 
     if item_id != last_id:
-        log.info(f"[{pipeline_name}] Yeni sonuç tespit edildi: {display_label} -> {result} (tetikleyen: {triggered_by})")
+        log.info(f"[{pipeline_name}] New result: {display_label} -> {result} (triggered by: {triggered_by})")
         notify_callback({
             "pipeline_name": pipeline_name,
             "display_label": display_label,
             "result": result,
             "triggered_by": triggered_by,
         })
-        save_last_build_id(item_id)
+        save_last_build_id(pipeline_id, item_id)
     else:
-        log.debug(f"[{pipeline_name}] Değişiklik yok, son id={item_id} zaten bildirilmiş.")
+        log.debug(f"[{pipeline_name}] No changes, last id={item_id} already reported.")
 
 
 def run_once(cfg: dict, pat: str, notify_callback=None) -> None:
     if notify_callback is None:
-        # Varsayılan davranış: doğrudan toast göster (mevcut console-app modu)
         def notify_callback(payload):
             notify_deployment_result(
                 payload["pipeline_name"],
@@ -101,11 +112,6 @@ def run_once(cfg: dict, pat: str, notify_callback=None) -> None:
         _check_release_pipeline(cfg, pat, notify_callback)
     elif pipeline_type == "build":
         _check_build_pipeline(cfg, pat, notify_callback)
-    else:
-        raise ValueError(
-            f"Bilinmeyen pipeline_type: '{cfg.get('pipeline_type')}'. "
-            "config.json'da 'build' veya 'release' olmalı."
-        )
 
 
 def main() -> None:
@@ -115,7 +121,7 @@ def main() -> None:
     consecutive_errors = 0
     max_backoff_seconds = 300
 
-    log.info(f"Deployment notifier başlatıldı. Her {base_interval} saniyede bir kontrol edilecek.")
+    log.info(f"Deployment is started.")
 
     while True:
         try:
@@ -126,12 +132,12 @@ def main() -> None:
         except AdoApiError as e:
             consecutive_errors += 1
             sleep_seconds = min(base_interval * (2 ** consecutive_errors), max_backoff_seconds)
-            log.warning(f"API hatası ({consecutive_errors}. art arda): {e} -- {sleep_seconds}s sonra tekrar denenecek")
+            log.warning(f"API hatası")
 
         except Exception:
             consecutive_errors += 1
             sleep_seconds = min(base_interval * (2 ** consecutive_errors), max_backoff_seconds)
-            log.exception(f"Beklenmeyen hata -- {sleep_seconds}s sonra tekrar denenecek")
+            log.exception(f"Unexpected ERROR")
 
         time.sleep(sleep_seconds)
 

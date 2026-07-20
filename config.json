@@ -1,8 +1,7 @@
 {
-  "organization": "sude200270",
-  "project": "deploy-auto-sim",
+  "organization": "ORGANİZASYON_ADI_YAZILACAK",
+  "project": "PROJE_ADI_YAZILACAK",
   "pipeline_type": "build",
-  "pipeline_id": 1,
   "environment_id": null,
   "poll_interval_seconds": 30,
   "api_version": "7.1"
