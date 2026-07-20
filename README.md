@@ -2,8 +2,7 @@
 
 A lightweight Windows tool that watches your Azure DevOps pipelines and notifies you the moment a deployment finishes — no more tabbing back to check if the build passed.
 
-![screenshot placeholder](Ekran görüntüsü 2026-07-20 115401.png
-)
+![Toast notification example](Ekran%20görüntüsü%202026-07-20%20115401.png)
 
 ## What it does
 
