@@ -1,6 +1,6 @@
 {
-  "organization": "ORGANİZASYON_ADI_YAZILACAK",
-  "project": "PROJE_ADI_YAZILACAK",
+  "organization": "sude200270",
+  "project": "deploy-auto-sim",
   "pipeline_type": "build",
   "environment_id": null,
   "poll_interval_seconds": 30,

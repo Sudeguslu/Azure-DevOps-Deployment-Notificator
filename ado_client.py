@@ -27,11 +27,11 @@ def _get(url: str, pat: str, timeout: int) -> dict:
     return response.json()
 
 
-def get_latest_build(organization: str, project: str,
+def get_latest_build(organization: str, project: str,       definition_id:int ,
                       pat: str, api_version: str = "7.1", top: int = 20, timeout: int = 15) -> dict:
     url = (
         f"https://dev.azure.com/{organization}/{project}/_apis/build/builds"
-        f"?definitions={pipeline_id}&$top=1&queryOrder=finishTimeDescending"
+        f"?definitions={definition_id}&$top=1&queryOrder=finishTimeDescending"
         f"&api-version={api_version}"
     )
 

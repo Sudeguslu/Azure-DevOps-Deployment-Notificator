@@ -159,4 +159,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        log.info("Deployment notifier durduruldu (stop sinyali alındı).")
