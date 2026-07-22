@@ -13,3 +13,6 @@ def notify_deployment_result(pipeline_name: str, build_number: str, result: str,
     title = titles.get(result, f"Deployment {result}")
     message = f"{pipeline_name} — build {build_number}\nTriggered by {triggered_by}"
     toast(title, message, duration="short")
+
+#URL verilince bu adresi açması için 
+toast(title, message, duration="short", on_click=url if url else print)

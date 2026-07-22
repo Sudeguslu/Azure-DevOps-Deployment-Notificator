@@ -39,6 +39,11 @@ def _check_build_pipeline(cfg: dict, pat: str, notify_callback) -> None:
         commit_short = commit_hash[:7] if commit_hash else ""
         commit_summary = f" [{commit_short}: {commit_message.strip()[:60]}]" if commit_short else ""
 
+        build_url = (
+            f"https://dev.azure.com/{cfg['organization']}/{cfg['project']}"
+            f"/_build/results?buildId={item_id}&view=results"
+        )
+
         last_id = last_ids.get(str(pipeline_id))
         if last_id is None or item_id > last_id:
             log.info(f"[{pipeline_name}] Yeni sonuç tespit edildi: {display_number}{commit_summary} -> {result} (tetikleyen: {triggered_by})")
@@ -46,7 +51,8 @@ def _check_build_pipeline(cfg: dict, pat: str, notify_callback) -> None:
                 "pipeline_name":pipeline_name,
                 "display_label":display_number + commit_summary,
                 "result": result,
-                "triggered_by": triggered_by
+                "triggered_by": triggered_by,
+                "url": build_url,
             })
             save_last_build_id(pipeline_id, item_id)
             last_ids[str(pipeline_id)] = item_id
@@ -80,6 +86,14 @@ def _check_release_pipeline(cfg: dict, pat: str, notify_callback) -> None:
 
     display_label = f"{release_name} ({environment_name})" if environment_name else release_name
 
+    release_id = deployment.get("release", {}).get("id")
+    environment_ado_id = deployment.get("releaseEnvironment", {}).get("id")
+    release_url = (
+        f"https://dev.azure.com/{cfg['organization']}/{cfg['project']}"
+        f"/_releaseProgress?_a=release-environment-logs"
+        f"&releaseId={release_id}&environmentId={environment_ado_id}"
+    )
+
     last_ids = load_last_build_ids()
     last_id = last_ids.get(str(pipeline_id))
 
@@ -90,6 +104,7 @@ def _check_release_pipeline(cfg: dict, pat: str, notify_callback) -> None:
             "display_label": display_label,
             "result": result,
             "triggered_by": triggered_by,
+            "url": release_url,
         })
         save_last_build_id(pipeline_id, item_id)
     else:
@@ -104,6 +119,7 @@ def run_once(cfg: dict, pat: str, notify_callback=None) -> None:
                 payload["display_label"],
                 payload["result"],
                 payload["triggered_by"],
+                payload.get("url"),
             )
 
     pipeline_type = cfg.get("pipeline_type", "build")
